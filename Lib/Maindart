@@ -1,0 +1,140 @@
+import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
+
+void main() {
+  runApp(const AudioApp());
+}
+
+class AudioApp extends StatelessWidget {
+  const AudioApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(),
+      home: const HomeScreen(),
+    );
+  }
+}
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  int userCoins = 50;
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  int? currentlyPlayingIndex;
+  bool isPlaying = false;
+
+  final List<Map<String, dynamic>> episodes = List.generate(
+    10,
+    (index) => {
+      "id": index + 1,
+      "title": "Episode ${index + 1}: Modern Romance",
+      "isLocked": index >= 5,
+      "coinsRequired": 10,
+      "audioUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", 
+    },
+  );
+
+  void playAudio(String url, int index) async {
+    try {
+      if (currentlyPlayingIndex == index && isPlaying) {
+        await _audioPlayer.pause();
+        setState(() => isPlaying = false);
+      } else {
+        await _audioPlayer.setUrl(url);
+        _audioPlayer.play();
+        setState(() {
+          currentlyPlayingIndex = index;
+          isPlaying = true;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error: $e");
+    }
+  }
+
+  void unlockEpisode(int index) {
+    int cost = episodes[index]["coinsRequired"];
+    if (userCoins >= cost) {
+      setState(() {
+        userCoins -= cost;
+        episodes[index]["isLocked"] = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("${episodes[index]['title']} Unlocked!")),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Not enough coins!")),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Audio FM - Romance"),
+        actions: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.amber,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.monetization_on, color: Colors.black, size: 18),
+                const SizedBox(width: 4),
+                Text("$userCoins", style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          )
+        ],
+      ),
+      body: ListView.builder(
+        itemCount: episodes.length,
+        itemBuilder: (context, index) {
+          final ep = episodes[index];
+          bool isCurrent = currentlyPlayingIndex == index;
+
+          return ListTile(
+            leading: Icon(
+              ep["isLocked"] ? Icons.lock : (isCurrent && isPlaying ? Icons.pause_circle : Icons.play_circle),
+              color: ep["isLocked"] ? Colors.grey : Colors.redAccent,
+              size: 32,
+            ),
+            title: Text(ep["title"]),
+            subtitle: Text(ep["isLocked"] ? "Requires ${ep['coinsRequired']} Coins" : "Free Episode"),
+            trailing: ep["isLocked"]
+                ? ElevatedButton(
+                    onPressed: () => unlockEpisode(index),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
+                    child: const Text("Unlock", style: TextStyle(color: Colors.black)),
+                  )
+                : null,
+            onTap: () {
+              if (!ep["isLocked"]) {
+                playAudio(ep["audioUrl"], index);
+              }
+            },
+          );
+        },
+      ),
+    );
+  }
+}
